@@ -1,5 +1,5 @@
 export default class HeckelDiff {
-  static executeDiff(oldTextArray, newTextArray) {
+  static executeDiff(oldTextArray: string[], newTextArray: string[]) {
     if (!oldTextArray.push) {
       throw(new Error('Argument is not an array'));
     }
@@ -9,25 +9,17 @@ export default class HeckelDiff {
     return new HeckelDiffWrapper(oldTextArray, newTextArray, diffResult).convertToTypedOutput();
   }
 
-  static diff(left, right) {
+  static diff(left: string[], right: string[]) {
     const differ = new HeckelDiff(left, right);
     return differ.performDiff();
   }
 
-  constructor(left, right) {
-    this.left = left;
-    this.right = right;
-  }
+  constructor(public left: string[], public right: string[]) {}
 
   performDiff() {
     let uniquePositions = this.identifyUniquePositions();
-    uniquePositions.sort(function(a, b) {
-      if (a[0] > b[0]) {
-        return 1;
-      } else {
-        return -1;
-      }
-    });
+    uniquePositions.sort((a, b) => b[0] - a[0]);
+
     const [leftChangePos, rightChangePos] = this.findNextChange();
     let initChanges = new ChangeData(leftChangePos, rightChangePos, []);
     uniquePositions.forEach((pos) => {
@@ -37,7 +29,7 @@ export default class HeckelDiff {
     return initChanges.changeRanges;
   }
 
-  getDifferences(changeData, uniquePositions) {
+  getDifferences(changeData: ChangeData, uniquePositions: UniquePositions) {
     const [leftPos, rightPos] = [changeData.leftChangePos,
                                  changeData.rightChangePos];
     const [leftUniqPos, rightUniqPos] = uniquePositions;
@@ -68,7 +60,8 @@ export default class HeckelDiff {
     return [leftStartPos + offset, rightStartPos + offset];
   }
 
-  findPrevChange(leftLo, rightLo, leftHi, rightHi) {
+  findPrevChange(leftLo: number, rightLo: number,
+                 leftHi: number, rightHi: number) {
     if (leftLo > leftHi || rightLo > rightHi) {
       return [leftLo, leftHi, rightLo, rightHi];
     } else {
@@ -80,7 +73,7 @@ export default class HeckelDiff {
     }
   }
 
-  mismatchOffset(lArr, rArr) {
+  mismatchOffset(lArr: string[], rArr: string[]) {
     const max = Math.max(lArr.length, rArr.length);
     for (let i = 0; i < max; i++) {
       if (lArr[i] !== rArr[i]) {
@@ -91,79 +84,82 @@ export default class HeckelDiff {
     return Math.min(lArr.length, rArr.length);
   }
 
-  identifyUniquePositions() {
+  identifyUniquePositions() : Array<UniquePositions> {
     const leftUniques = this.findUnique(this.left);
     const rightUniques = this.findUnique(this.right);
-    const leftKeys = Object.keys(leftUniques);
-    const rightKeys = Object.keys(rightUniques);
-    const sharedKeys = leftKeys.filter((k) => rightKeys.indexOf(k) >= 0);
-    let uniqRanges = sharedKeys.map((k) => [leftUniques[k], rightUniques[k]]);
+    const leftKeys = new Set(...leftUniques.keys());
+    const rightKeys = new Set(...rightUniques.keys());
+    const sharedKeys = new Set([...leftKeys].filter(k => rightKeys.has(k)));
+
+    const uniqRanges = [...sharedKeys].map((k) => {
+      return <UniquePositions>[leftUniques.get(k),
+                               rightUniques.get(k)];
+    });
     uniqRanges.unshift([this.left.length, this.right.length]);
     return uniqRanges;
   }
 
-  findUnique(array) {
-    let flaggedUniques = {};
+  findUnique(array: string[]) {
+    const flaggedUniques: Map<string, UniqueItem> = new Map<string, UniqueItem>();
 
     array.forEach((item, pos) => {
-      flaggedUniques[item] = { pos, unique: !flaggedUniques[item] };
+      flaggedUniques.set(item, new UniqueItem(pos, !flaggedUniques.has(item)));
     });
 
-    let uniques = {};
-    Object.keys(flaggedUniques).filter((key) => {
-      return flaggedUniques[key].unique;
-    }).map((key) => {
-      uniques[key] = flaggedUniques[key].pos;
-    });
+    const uniques : Map<string, number> = new Map<string, number>();
+    for(let [key, value] of flaggedUniques.entries()) {
+      if (value.unique) {
+        uniques.set(key, value.pos);
+      }
+    }
 
     return uniques;
   }
 
   // given the calculated bounds of the 2 way diff, create the proper
   // change type and add it to the queue.
-  appendChangeRange(changesRanges, leftLo, leftHi, rightLo, rightHi) {
+  appendChangeRange(changesRanges: ChangeRange[],
+                    leftLo: number,
+                    leftHi: number,
+                    rightLo: number,
+                    rightHi: number) {
     if (leftLo <= leftHi && rightLo <= rightHi) {
       // for this change, the bounds are both 'normal'. the beginning
       // of the change is before the end.
-      changesRanges.push(['change',
-                          leftLo + 1, leftHi + 1,
-                          rightLo + 1, rightHi + 1]);
+      changesRanges.push(new ChangeRange(Action.change,
+                                         leftLo + 1, leftHi + 1,
+                                         rightLo + 1, rightHi + 1));
     } else if (leftLo <= leftHi) {
-      changesRanges.push(['delete',
-                          leftLo + 1, leftHi + 1,
-                          rightLo + 1, rightLo]);
+      changesRanges.push(new ChangeRange(Action.remove,
+                                         leftLo + 1, leftHi + 1,
+                                         rightLo + 1, rightLo));
     } else if (rightLo <= rightHi) {
-      changesRanges.push(['add',
-                          leftLo + 1, leftLo,
-                          rightLo + 1, rightHi + 1]);
+      changesRanges.push(new ChangeRange(Action.add,
+                                         leftLo + 1, leftLo,
+                                         rightLo + 1, rightHi + 1));
     }
 
     return changesRanges;
   }
 }
 
-class TextNode {
-  constructor(text, low) {
-    this.text = text;
-    this.low = low;
-  }
+export type UniquePositions = [number, number];
+
+class UniqueItem {
+  constructor(public pos: number, public unique: boolean) {}
 }
 
-class TwoWayChunk {
-  constructor(rawChunk) {
-    this.action = rawChunk[0];
-    this.leftLo = rawChunk[1];
-    this.leftHi = rawChunk[2];
-    this.rightLo = rawChunk[3];
-    this.rightHi = rawChunk[4];
-  }
+export class TextNode {
+  constructor(public text: string, public low: number) {}
 }
 
 class HeckelDiffWrapper {
-  constructor(oldTextArray, newTextArray, heckelDiff) {
-    this.chunks = heckelDiff.map((block) => new TwoWayChunk(block));
-    this.oldTextArray = oldTextArray;
-    this.newTextArray = newTextArray;
+  oldText: Array<TextNode|string>;
+  newText: Array<TextNode|string>;
+
+  constructor(public oldTextArray: string[],
+              public newTextArray: string[],
+              public chunks: ChangeRange[]) {
     this.oldText = [];
     this.newText = [];
   }
@@ -186,7 +182,7 @@ class HeckelDiffWrapper {
     };
   }
 
-  setTextNodeIndexes(chunk, oldIndex, newIndex) {
+  setTextNodeIndexes(chunk: ChangeRange, oldIndex: number, newIndex: number) {
     let oldIteration = 0;
     while (oldIndex + oldIteration < chunk.leftLo - 1) { // chunk indexes from 1
       this.oldText.push(new TextNode(this.oldTextArray[oldIndex + oldIteration],
@@ -204,7 +200,7 @@ class HeckelDiffWrapper {
     return [oldIteration, newIteration];
   }
 
-  appendChanges(chunk, oldIndex, newIndex) {
+  appendChanges(chunk: ChangeRange, oldIndex: number, newIndex: number) {
     while (oldIndex <= chunk.leftHi - 1) {
       this.oldText.push(this.oldTextArray[oldIndex]);
       oldIndex += 1;
@@ -217,7 +213,7 @@ class HeckelDiffWrapper {
     return [oldIndex, newIndex];
   }
 
-  setTheRemainingTextNodeIndexes(oldIndex, newIndex) {
+  setTheRemainingTextNodeIndexes(oldIndex: number, newIndex: number) {
     let iteration = 0;
     while (oldIndex + iteration < this.oldTextArray.length) {
       this.oldText.push(new TextNode(this.oldTextArray[oldIndex + iteration],
@@ -234,16 +230,25 @@ class HeckelDiffWrapper {
 }
 
 class IndexTracker {
-  constructor(oldIndex, newIndex) {
-    this.oldIndex = oldIndex;
-    this.newIndex = newIndex;
+  constructor(public oldIndex: number, public newIndex: number) {
   }
 }
 
-class ChangeData {
-  constructor(leftChangePos, rightChangePos, changeRanges) {
-    this.leftChangePos = leftChangePos;
-    this.rightChangePos = rightChangePos;
-    this.changeRanges = changeRanges;
+export enum Action {
+  change = "change",
+  add = "add",
+  remove = "remove"
+}
+
+export class ChangeRange {
+  constructor(public action: Action,
+              public leftLo: number, public leftHi: number,
+              public rightLo: number, public rightHi: number) {}
+}
+
+export class ChangeData {
+  constructor(public leftChangePos: number,
+              public rightChangePos: number,
+              public changeRanges: ChangeRange[]) {
   }
 }

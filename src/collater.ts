@@ -1,8 +1,13 @@
-import { Resolved, Conflicted } from './outcomes';
+import { Resolved, Outcome } from './outcomes';
 import MergeResult from './merge-result';
 
+export type JoinFunction = (a: string[]) => string;
+export type ConflictFunction = (a: Outcome[]) => any;
+
 export default class Collater {
-  static collateMerge(mergeResult, joinFunction, conflictHandler) {
+  static collateMerge(mergeResult: Outcome[],
+                      joinFunction: JoinFunction,
+                      conflictHandler: ConflictFunction) {
     if (!mergeResult.length) {
       return new MergeResult([new Resolved([])], joinFunction);
     } else {
@@ -17,12 +22,13 @@ export default class Collater {
     }
   }
 
-  static combineNonConflicts(results) {
-    let rs = [];
+  static combineNonConflicts(results: Outcome[]) {
+    let rs = <Outcome[]>[];
 
     results.forEach((r) => {
       if (rs.length && rs[rs.length - 1].isResolved() && r.isResolved()) {
-        rs[rs.length - 1].combine(r);
+        const last = <Resolved>rs[rs.length - 1];
+        last.combine(<Resolved>r);
       } else {
         rs.push(r);
       }

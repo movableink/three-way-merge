@@ -1,39 +1,47 @@
-import Diff2 from './heckel-diff';
+import Diff2, { ChangeRange, Action } from './heckel-diff';
 
-class Diff2Command {
-  constructor(r) {
-    this.code = r[0];
-    this.baseLo = r[1];
-    this.baseHi = r[2];
-    this.sideLo = r[3];
-    this.sideHi = r[4];
+export class Diff2Command {
+  static fromChangeRange(changeRange: ChangeRange) {
+    return new Diff2Command(changeRange.action,
+                            changeRange.leftLo,
+                            changeRange.leftHi,
+                            changeRange.rightLo,
+                            changeRange.rightHi);
   }
+
+  constructor(public code: Action,
+              public baseLo: number,
+              public baseHi: number,
+              public sideLo: number,
+              public sideHi: number) {}
 }
 
 export default class Diff3 {
-  static executeDiff(left, base, right) {
+  static executeDiff(left: string[], base: string[], right: string[]) {
     return new Diff3(left, base, right).getDifferences();
   }
 
-  constructor(left, base, right) {
-    this.left = left;
-    this.base = base;
-    this.right = right;
-  }
+  constructor(public left: string[],
+              public base: string[],
+              public right: string[]) {}
 
   getDifferences() {
-    const leftDiff = Diff2.diff(this.base, this.left).map((r) => new Diff2Command(r));
-    const rightDiff = Diff2.diff(this.base, this.right).map((r) => new Diff2Command(r));
+    const leftDiff = Diff2.diff(this.base, this.left).map((d) => {
+      return Diff2Command.fromChangeRange(d)
+    });
+    const rightDiff = Diff2.diff(this.base, this.right).map((d) => {
+      return Diff2Command.fromChangeRange(d);
+    });
     return this.collapseDifferences(new DiffDoubleQueue(leftDiff, rightDiff));
   }
 
-  collapseDifferences(diffsQueue, differences=[]) {
+  collapseDifferences(diffsQueue: DiffDoubleQueue, differences=<Difference[]>[]) : Difference[] {
     if (diffsQueue.isFinished()) {
       return differences;
     } else {
       const resultQueue = new DiffDoubleQueue();
       const initSide = diffsQueue.chooseSide();
-      const topDiff = diffsQueue.dequeue();
+      const topDiff = <Diff2Command>diffsQueue.dequeue();
 
       resultQueue.enqueue(initSide, topDiff);
 
@@ -48,11 +56,13 @@ export default class Diff3 {
     }
   }
 
-  buildResultQueue(diffsQueue, prevBaseHi, resultQueue) {
+  buildResultQueue(diffsQueue: DiffDoubleQueue,
+                   prevBaseHi: number,
+                   resultQueue: DiffDoubleQueue) : DiffDoubleQueue {
     if (this.queueIsFinished(diffsQueue.peek(), prevBaseHi)) {
       return resultQueue;
     } else {
-      const topDiff = diffsQueue.dequeue();
+      const topDiff = <Diff2Command>diffsQueue.dequeue();
       resultQueue.enqueue(diffsQueue.currentSide, topDiff);
 
       if (prevBaseHi < topDiff.baseHi) {
@@ -64,29 +74,31 @@ export default class Diff3 {
     }
   }
 
-  queueIsFinished(queue, prevBaseHi) {
+  queueIsFinished(queue: Diff2Command[], prevBaseHi: number) {
     return queue.length === 0 || queue[0].baseLo > prevBaseHi + 1;
   }
 
-  determineDifference(diffDiffsQueue, initSide, finalSide) {
+  determineDifference(diffDiffsQueue: DiffDoubleQueue, initSide: Side, finalSide: Side) : Difference {
     const baseLo = diffDiffsQueue.get(initSide)[0].baseLo;
     const finalQueue = diffDiffsQueue.get(finalSide);
     const baseHi = finalQueue[finalQueue.length - 1].baseHi;
 
-    const [leftLo, leftHi] = this.diffableEndpoints(diffDiffsQueue.get('left'), baseLo, baseHi);
-    const [rightLo, rightHi] = this.diffableEndpoints(diffDiffsQueue.get('right'), baseLo, baseHi);
+    const [leftLo, leftHi] = this.diffableEndpoints(diffDiffsQueue.get(Side.left), baseLo, baseHi);
+    const [rightLo, rightHi] = this.diffableEndpoints(diffDiffsQueue.get(Side.right), baseLo, baseHi);
 
     const leftSubset = this.left.slice(leftLo-1, leftHi);
     const rightSubset = this.right.slice(rightLo-1, rightHi);
     const changeType = this.decideAction(diffDiffsQueue, leftSubset, rightSubset);
 
-    return [changeType, leftLo, leftHi, rightLo, rightHi, baseLo, baseHi];
+    return new Difference(changeType, leftLo, leftHi, rightLo, rightHi, baseLo, baseHi);
   }
 
-  diffableEndpoints(command, baseLo, baseHi) {
-    if (command.length) { //TODO
-      const lo = command[0].sideLo - command[0].baseLo + baseLo;
-      const hi = command[command.length - 1].sideHi  - command[command.length - 1].baseHi  + baseHi;
+  diffableEndpoints(commands: Diff2Command[], baseLo: number, baseHi: number) {
+    if (commands.length) { //TODO
+      const firstCommand = commands[0];
+      const lastCommand = commands[commands.length - 1];
+      const lo = firstCommand.sideLo - firstCommand.baseLo + baseLo;
+      const hi = lastCommand.sideHi  - lastCommand.baseHi  + baseHi;
 
       return [lo, hi];
     } else {
@@ -94,23 +106,51 @@ export default class Diff3 {
     }
   }
 
-  decideAction(diffDiffsQueue, leftSubset, rightSubset) {
-    if (diffDiffsQueue.isEmpty('left')) {
-      return 'choose_right';
-    } else if (diffDiffsQueue.isEmpty('right')) {
-      return 'choose_left';
+  decideAction(diffDiffsQueue: DiffDoubleQueue,
+               leftSubset: string[],
+               rightSubset: string[]) {
+    if (diffDiffsQueue.isEmpty(Side.left)) {
+      return ChangeType.chooseRight;
+    } else if (diffDiffsQueue.isEmpty(Side.right)) {
+      return ChangeType.chooseLeft;
     } else {
-      if (leftSubset !== rightSubset) {
-        return 'possible_conflict';
+      // leftSubset deepEquals rightSubset
+      if (!leftSubset.every((x, i) => rightSubset[i] === x)) {
+        return ChangeType.possibleConflict;
       } else {
-        return 'no_conflict_found';
+        return ChangeType.noConflictFound;
       }
     }
   }
 }
 
-class DiffDoubleQueue {
-  constructor(left=[], right=[]) {
+export class Difference {
+  constructor(public changeType: ChangeType,
+              public leftLo: number,
+              public leftHi: number,
+              public rightLo: number,
+              public rightHi: number,
+              public baseLo: number,
+              public baseHi: number) {}
+}
+
+export enum ChangeType {
+  chooseRight = 'choose_right',
+  chooseLeft = 'choose_left',
+  possibleConflict = 'possible_conflict',
+  noConflictFound = 'no_conflict_found'
+}
+
+export enum Side {
+  left = "left",
+  right = "right"
+}
+
+export class DiffDoubleQueue {
+  currentSide: Side;
+  diffs: { [index:string] : Diff2Command[] };
+
+  constructor(left=<Diff2Command[]>[], right=<Diff2Command[]>[]) {
     this.diffs = { left: left, right: right };
   }
 
@@ -123,10 +163,10 @@ class DiffDoubleQueue {
   }
 
   isFinished() {
-    return this.isEmpty('left') && this.isEmpty('right');
+    return this.isEmpty(Side.left) && this.isEmpty(Side.right);
   }
 
-  enqueue(side=this.currentSide, val) {
+  enqueue(side=this.currentSide, val: Diff2Command) {
     return this.diffs[side].push(val);
   }
 
@@ -139,16 +179,16 @@ class DiffDoubleQueue {
   }
 
   switchSides(side=this.currentSide) {
-    return this.currentSide = (side === 'left') ? 'right' : 'left';
+    return this.currentSide = (side === Side.left) ? Side.right : Side.left;
   }
 
   chooseSide() {
-    if (this.isEmpty('left')) {
-      this.currentSide = 'right';
-    } else if (this.isEmpty('right')) {
-      this.currentSide = 'left';
+    if (this.isEmpty(Side.left)) {
+      this.currentSide = Side.right;
+    } else if (this.isEmpty(Side.right)) {
+      this.currentSide = Side.left;
     } else {
-      this.currentSide = (this.get('left')[0].baseLo <= this.get('right')[0].baseLo ? 'left' : 'right');
+      this.currentSide = (this.get(Side.left)[0].baseLo <= this.get(Side.right)[0].baseLo ? Side.left : Side.right);
     }
 
     return this.currentSide;

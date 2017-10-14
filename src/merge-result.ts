@@ -1,7 +1,17 @@
+import { Outcome, Resolved } from './outcomes';
+
+type MergeResultOptions = {
+  conflictHandler?: Function,
+  conflict?: boolean
+}
+
 export default class MergeResult {
-  constructor(results, joinFunction, options={}) {
-    this.results = results;
-    this.joinFunction = joinFunction;
+  conflict: boolean;
+  conflictHandler: Function | undefined;
+
+  constructor(public results: Outcome[],
+              public joinFunction: Function,
+              options=<MergeResultOptions>{}) {
     this.conflictHandler = options.conflictHandler;
     this.conflict = options.conflict || false;
   }
@@ -23,8 +33,8 @@ export default class MergeResult {
       }
     } else {
       const [first, rest] = [this.results[0], this.results.slice(1)];
-      let rs = first;
-      rest.forEach((r) => rs.combine(r));
+      let rs = <Resolved>first;
+      rest.forEach((r) => rs.combine(<Resolved>r));
 
       return rs.apply(this.joinFunction).result;
     }

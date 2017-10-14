@@ -3,7 +3,7 @@
 const path = require('path');
 
 module.exports = {
-  name: 'three-way-diff',
+  name: 'three-way-merge',
 
   setupPreprocessorRegistry(type, registry) {
     if (type === 'self') {

@@ -1,4 +1,6 @@
-class Outcome {
+export abstract class Outcome {
+  hasConflicts: boolean;
+
   isResolved() {
     return !this.hasConflicts;
   }
@@ -6,20 +8,33 @@ class Outcome {
   isConflicted() {
     return this.hasConflicts;
   }
+
+  abstract apply(fun: Function): Outcome
 }
 
-class Conflicted extends Outcome {
-  constructor(opts) {
+export type ConflictedOpts = {
+  left: string[],
+  right: string[],
+  base: string[]
+}
+
+export class Conflicted extends Outcome {
+  // Special constructor because left/base/right positional params
+  // are confusing
+  static create(opts: ConflictedOpts) {
+    return new Conflicted(opts.left, opts.base, opts.right);
+  }
+
+  constructor(public left: string[],
+              public base: string[],
+              public right: string[]) {
     super();
 
     this.hasConflicts = true;
-    this.left = opts.left;
-    this.base = opts.base;
-    this.right = opts.right;
   }
 
-  apply(fun) {
-    return new Conflicted({
+  apply(fun: Function) {
+    return Conflicted.create({
       left: fun(this.left),
       base: fun(this.base),
       right: fun(this.right)
@@ -27,26 +42,22 @@ class Conflicted extends Outcome {
   }
 }
 
-class Resolved extends Outcome {
-  constructor(result) {
+export class Resolved extends Outcome {
+  combiner: Function;
+  result: string[];
+
+  constructor(result: string[]) {
     super();
 
     this.hasConflicts = false;
     this.result = result;
-    this.combiner = (x, y) => x.concat(y);
   }
 
-  setCombiner(fun) {
-    this.combiner = fun;
+  combine(other: Resolved) {
+    this.result = this.result.concat(other.result);
   }
 
-  combine(other) {
-    this.result = this.combiner(this.result, other.result);
-  }
-
-  apply(fun) {
+  apply(fun: Function) {
     return new Resolved(fun(this.result));
   }
 }
-
-export { Resolved, Conflicted }

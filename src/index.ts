@@ -1,4 +1,4 @@
-import { default as merge } from './differ';
+import { default as merge } from './three-way-merge';
 
 export default merge;
 export { merge };
