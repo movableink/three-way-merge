@@ -1,6 +1,6 @@
 {
   "name": "three-way-merge",
-  "version": "0.5.0",
+  "version": "0.1.0",
   "description": "Library for performing three-way diffs and merges",
   "main": "dist/commonjs/src/index.js",
   "module": "dist/modules/src/index.js",
