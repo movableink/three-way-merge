@@ -15,7 +15,7 @@ export default class Merger {
 
   constructor(left: string[], base: string[], right: string[]) {
     this.result = [];
-    this.text3 = new Text3(left, right, base);
+    this.text3 = new Text3(left, base, right);
   }
 
   executeThreeWayMerge() {
@@ -168,7 +168,7 @@ export default class Merger {
 
 export class Text3 {
   constructor(public left: string[],
-              public right: string[],
-              public base: string[]) {
+              public base: string[],
+              public right: string[]) {
   }
 }
