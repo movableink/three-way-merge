@@ -19,7 +19,7 @@ const base =     [1, 2, 3, 4, 5, 6].join("\n");
 const left =     [   2, 3, 4, 5, 6].join("\n");
 const right =    [1, 2, 3, 4, 9, 6].join("\n");
 
-const merged = merge(base, left, right);
+const merged = merge(left, base, right);
 
 console.log(merged.conflict);      => false
 console.log(merged.joinedResult()) => (merged string)
