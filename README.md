@@ -22,7 +22,7 @@ const right =    [1, 2, 3, 4, 9, 6].join("\n");
 const merged = merge(left, base, right);
 
 console.log(merged.conflict);      => false
-console.log(merged.joinedResult()) => (merged string)
+console.log(merged.joinedResults()) => (merged string)
 ```
 
 ## License (The MIT License)
