@@ -41,3 +41,15 @@ QUnit.test('reasonable merge performance', assert => {
   assert.equal(merged.joinedResults(), expected,
                "merges reasonably quickly");
 });
+
+QUnit.test('merge jsons', assert => {
+  const strBase = '{"enabled":false}';
+  const strLeft = '{"enabled":true,"other":1}';
+  const strRight = '{"enabled":true}';
+  const merged = merge(strLeft, strBase, strRight);
+  assert.equal(merged.conflict, false,
+               'has no merge conflicts');
+  
+  assert.equal(merged.joinedResults(), strLeft);
+});
+
