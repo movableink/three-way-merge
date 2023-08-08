@@ -66,9 +66,7 @@ export default class Merger {
   determineConflict(d: ChangeRange[], left: string[], right: string[]) {
     let ia = 1;
     d.forEach((changeRange) => {
-      for(let lineno = ia; lineno <= changeRange.leftLo; lineno++) {
-        this.result.push(new Resolved(this.accumulateLines(ia, lineno, right)));
-      }
+      this.result.push(new Resolved(this.accumulateLines(ia, changeRange.leftLo, right)));
 
       const outcome = this.determineOutcome(changeRange, left, right);
       ia = changeRange.rightHi + 1;

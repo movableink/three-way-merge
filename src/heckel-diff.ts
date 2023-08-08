@@ -87,8 +87,8 @@ export default class HeckelDiff {
   identifyUniquePositions() : Array<UniquePositions> {
     const leftUniques = this.findUnique(this.left);
     const rightUniques = this.findUnique(this.right);
-    const leftKeys = new Set(...leftUniques.keys());
-    const rightKeys = new Set(...rightUniques.keys());
+    const leftKeys = new Set(leftUniques.keys());
+    const rightKeys = new Set(rightUniques.keys());
     const sharedKeys = new Set([...leftKeys].filter(k => rightKeys.has(k)));
 
     const uniqRanges = [...sharedKeys].map((k) => {
